@@ -101,6 +101,19 @@ impl<'w> Tasks<'w> {
         unreachable!("This function is private when the `wasm` feature is not enabled and should be uncallable.");
     }
 
+    #[cfg(feature = "wasm")]
+    pub fn spawn_auto<Task, Output, Spawnable>(
+        &self,
+        spawnable_task: Spawnable,
+    ) -> JoinHandle<Output>
+    where
+        Task: Future<Output = Output> + 'static,
+        Spawnable: FnOnce(TaskContext) -> Task + 'static,
+    {
+        self.spawn_wasm(spawnable_task)
+    }
+
+    #[cfg(feature = "tokio")]
     pub fn spawn_auto<Task, Output, Spawnable>(
         &self,
         spawnable_task: Spawnable,
@@ -110,13 +123,19 @@ impl<'w> Tasks<'w> {
         Output: Send + 'static,
         Spawnable: FnOnce(TaskContext) -> Task + 'static,
     {
-        if cfg!(feature = "tokio") {
-            self.spawn_tokio(spawnable_task)
-        } else if cfg!(feature = "wasm") {
-            self.spawn_wasm(spawnable_task)
-        } else {
-            panic!("No runtime is enabled. Enable the `tokio` or `wasm` feature to use a runtime.");
-        }
+        self.spawn_tokio(spawnable_task)
+    }
+
+    #[cfg(not(any(feature = "tokio", feature = "wasm")))]
+    pub fn spawn_auto<Task, Output, Spawnable>(
+        &self,
+        _spawnable_task: Spawnable,
+    ) -> JoinHandle<Output>
+    where
+        Task: Future<Output = Output> + 'static,
+        Spawnable: FnOnce(TaskContext) -> Task + 'static,
+    {
+        panic!("No runtime is enabled. Enable the `tokio` or `wasm` feature to use a runtime.");
     }
 }
 
